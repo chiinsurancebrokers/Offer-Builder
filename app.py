@@ -23,9 +23,14 @@ st.set_page_config(page_title="Offer Builder · Ashlar", page_icon="🧾", layou
 # ── auth: the whole app is behind one password, and fails closed ─────────────
 def gate() -> None:
     import os
-    expected = os.environ.get("APP_PASSWORD_SHA256", "").strip().lower()
+    import re
+    expected = os.environ.get("APP_PASSWORD_SHA256", "").strip().strip("\"'").strip().lower()
     if not expected:
         st.error("Δεν έχει οριστεί APP_PASSWORD_SHA256. Η εφαρμογή δεν ξεκινά χωρίς κωδικό.")
+        st.stop()
+    if not re.fullmatch(r"[0-9a-f]{64}", expected):
+        st.error(f"Το APP_PASSWORD_SHA256 δεν είναι έγκυρο sha256: έχει {len(expected)} χαρακτήρες "
+                 "(πρέπει 64, μόνο 0-9 και a-f). Επικόλλησε ξανά μόνο το hash, χωρίς κενά ή άλλα σύμβολα.")
         st.stop()
     if st.session_state.get("auth"):
         return

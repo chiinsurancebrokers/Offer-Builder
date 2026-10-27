@@ -26,3 +26,19 @@ def test_wrong_then_right_password(monkeypatch):
     at.button[0].click().run()
     assert not at.exception
     assert len(at.tabs) == 4
+
+
+def test_malformed_hash_is_reported(monkeypatch):
+    monkeypatch.setenv("APP_PASSWORD_SHA256", "abc123")
+    at = AppTest.from_file(APP, default_timeout=30).run()
+    assert any("δεν είναι έγκυρο sha256" in e.value and "6 χαρακτήρες" in e.value for e in at.error)
+    assert len(at.tabs) == 0
+
+
+def test_hash_with_quotes_and_spaces_is_accepted(monkeypatch):
+    h = hashlib.sha256(b"secret").hexdigest()
+    monkeypatch.setenv("APP_PASSWORD_SHA256", f' "{h.upper()}" ')
+    at = AppTest.from_file(APP, default_timeout=30).run()
+    at.text_input[0].set_value("secret").run()
+    at.button[0].click().run()
+    assert len(at.tabs) == 4
