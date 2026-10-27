@@ -24,7 +24,7 @@
 ## Ρύθμιση
 
 ```bash
-python3 -c "import hashlib; print(hashlib.sha256(b'ΟΝΟΜΑ-ΚΩΔΙΚΟΣ').hexdigest())"
+python3 -c "import hashlib,getpass; print(hashlib.sha256(getpass.getpass('Κωδικός: ').encode()).hexdigest())"
 ```
 
 Environment variables (Railway → Variables, ή `.env` τοπικά):
