@@ -23,18 +23,21 @@
 
 ## Ρύθμιση
 
-```bash
-python3 -c "import hashlib,getpass; print(hashlib.sha256(getpass.getpass('Κωδικός: ').encode()).hexdigest())"
-```
+Ο κωδικός εισόδου αποθηκεύεται στη Supabase (πίνακας `offer_builder_auth`, hash bcrypt) και ελέγχεται
+μόνο μέσω των συναρτήσεων `ob_login` / `ob_change_password`. Στην πρώτη είσοδο με τον προσωρινό
+κωδικό η εφαρμογή ζητά νέο κωδικό (τουλάχιστον 12 χαρακτήρες). Μετά από 5 λάθη κλειδώνει για 15 λεπτά.
 
 Environment variables (Railway → Variables, ή `.env` τοπικά):
 
 | Μεταβλητή | Περιγραφή |
 |---|---|
 | `ANTHROPIC_API_KEY` | Υποχρεωτικό |
-| `APP_PASSWORD_SHA256` | Υποχρεωτικό. Χωρίς αυτό η εφαρμογή δεν ξεκινά |
+| `SUPABASE_URL`, `SUPABASE_KEY` | Υποχρεωτικά. Το URL του project και το publishable key (όχι service role) |
 | `BROKER_NAME`, `BROKER_TEL`, `BROKER_EMAIL` | Εμφανίζονται στο υποσέλιδο της προσφοράς |
 | `OFFERS_MODEL` | Προαιρετικό (προεπιλογή `claude-sonnet-5-5`) |
+
+Αν ξεχάσεις τον κωδικό: στο SQL editor της Supabase τρέξε
+`update public.offer_builder_auth set pw_hash = extensions.crypt('ΠΡΟΣΩΡΙΝΟΣ', extensions.gen_salt('bf',10)), must_change = true, locked_until = null, failed_attempts = 0;`
 
 ## Τοπικά
 

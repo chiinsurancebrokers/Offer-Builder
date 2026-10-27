@@ -4,14 +4,11 @@ Upload client documents -> extract risk data -> find gaps -> draft the request
 email -> upload carrier quotes -> compose the offer (HTML email + PDF) with a
 sources annex. Nothing is sent automatically; the broker reviews every step.
 """
-import hashlib
-import hmac
-import time
-
 import pandas as pd
 import streamlit as st
 import streamlit.components.v1 as components
 
+import auth
 import offer
 import pipeline
 from brain import process_uploads
@@ -20,30 +17,51 @@ from config import BROKER, MODEL
 st.set_page_config(page_title="Offer Builder · Ashlar", page_icon="🧾", layout="wide")
 
 
-# ── auth: the whole app is behind one password, and fails closed ─────────────
+# ── auth: the whole app is behind one password (stored in Supabase), fails closed ─
+REASONS = {
+    "bad_password": "Λάθος κωδικός.",
+    "too_short": "Ο νέος κωδικός πρέπει να έχει τουλάχιστον 12 χαρακτήρες.",
+    "same_password": "Ο νέος κωδικός πρέπει να διαφέρει από τον προσωρινό.",
+    "not_configured": "Δεν έχει οριστεί κωδικός στη βάση.",
+}
+
+
 def gate() -> None:
-    import os
-    import re
-    expected = os.environ.get("APP_PASSWORD_SHA256", "").strip().strip("\"'").strip().lower()
-    if not expected:
-        st.error("Δεν έχει οριστεί APP_PASSWORD_SHA256. Η εφαρμογή δεν ξεκινά χωρίς κωδικό.")
-        st.stop()
-    if not re.fullmatch(r"[0-9a-f]{64}", expected):
-        st.error(f"Το APP_PASSWORD_SHA256 δεν είναι έγκυρο sha256: έχει {len(expected)} χαρακτήρες "
-                 "(πρέπει 64, μόνο 0-9 και a-f). Επικόλλησε ξανά μόνο το hash, χωρίς κενά ή άλλα σύμβολα.")
-        st.stop()
     if st.session_state.get("auth"):
         return
     st.title("🔒 Offer Builder")
-    pw = st.text_input("Κωδικός", type="password")
-    if st.button("Είσοδος", type="primary"):
-        time.sleep(1.0 + 1.5 * min(st.session_state.get("fails", 0), 5))
-        ok = hmac.compare_digest(hashlib.sha256(pw.encode()).hexdigest(), expected)
-        if ok:
-            st.session_state["auth"] = True
-            st.rerun()
-        st.session_state["fails"] = st.session_state.get("fails", 0) + 1
-        st.error("Λάθος κωδικός")
+    pending = st.session_state.get("pending_pw")
+    try:
+        if pending is None:
+            pw = st.text_input("Κωδικός", type="password")
+            if st.button("Είσοδος", type="primary"):
+                res = auth.login(pw)
+                if res.get("ok") and res.get("must_change"):
+                    st.session_state["pending_pw"] = pw
+                    st.rerun()
+                elif res.get("ok"):
+                    st.session_state["auth"] = True
+                    st.rerun()
+                elif res.get("reason") == "locked":
+                    st.error(f"Πολλές αποτυχημένες προσπάθειες. Δοκίμασε ξανά σε {max(1, res.get('retry_seconds', 900) // 60)} λεπτά.")
+                else:
+                    st.error(REASONS.get(res.get("reason"), "Αποτυχία εισόδου."))
+        else:
+            st.info("Πρώτη είσοδος: όρισε τον δικό σου κωδικό (τουλάχιστον 12 χαρακτήρες).")
+            n1 = st.text_input("Νέος κωδικός", type="password")
+            n2 = st.text_input("Επανάληψη νέου κωδικού", type="password")
+            if st.button("Αλλαγή κωδικού", type="primary"):
+                if n1 != n2:
+                    st.error("Οι δύο κωδικοί δεν ταιριάζουν.")
+                else:
+                    res = auth.change_password(pending, n1)
+                    if res.get("ok"):
+                        st.session_state.pop("pending_pw", None)
+                        st.session_state["auth"] = True
+                        st.rerun()
+                    st.error(REASONS.get(res.get("reason"), "Αποτυχία αλλαγής."))
+    except auth.AuthUnavailable as e:
+        st.error(f"Η σύνδεση με τη βάση δεν είναι διαθέσιμη ({e}). Η εφαρμογή δεν ανοίγει χωρίς έλεγχο κωδικού.")
     st.stop()
 
 
