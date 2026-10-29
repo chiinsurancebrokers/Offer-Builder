@@ -111,7 +111,16 @@ def parse_json(text: str) -> dict:
     start, end = t.find("{"), t.rfind("}")
     if start == -1 or end <= start:
         raise ValueError(f"Δεν βρέθηκε JSON στην απάντηση: {text[:200]!r}")
-    return json.loads(t[start:end + 1])
+    body = t[start:end + 1]
+    try:
+        return json.loads(body)
+    except json.JSONDecodeError:
+        # Models occasionally emit unescaped quotes (e.g. «"ΑΤΕΕ"») inside strings.
+        from json_repair import repair_json
+        data = repair_json(body, return_objects=True)
+        if not isinstance(data, dict) or not data:
+            raise ValueError(f"Μη έγκυρο JSON στην απάντηση: {text[:200]!r}")
+        return data
 
 
 def is_unknown(v) -> bool:

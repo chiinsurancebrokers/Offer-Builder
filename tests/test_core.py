@@ -79,3 +79,9 @@ def test_process_uploads_types():
     assert kinds.count("document") == 3 and kinds.count("image") == 1
     assert blocks[0]["source"]["media_type"] == "application/pdf"
     assert len(summ) == 4
+
+
+def test_parse_json_repairs_unescaped_quotes():
+    bad = '{"a": {"v": "Εταιρεία "ΑΒΓ" ΑΤΕΕ", "src": "x.pdf, σελ. 1"}, "b": 2}'
+    out = pipeline.parse_json(bad)
+    assert out["b"] == 2 and "ΑΒΓ" in out["a"]["v"]
